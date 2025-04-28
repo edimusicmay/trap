@@ -1,0 +1,288 @@
+
+// BASE SETUP (same as before, keeping structure)
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const BASE_WIDTH = 600;
+const BASE_HEIGHT = 800;
+const baseLaneWidth = 150;
+const noteWidth = 50;
+const noteHeight = 20;
+const noteSpeed = 5;
+const hitboxTopBase = 595;
+const hitboxHeight = 40;
+const bufferHeight = hitboxHeight;
+
+const keyBindings = { 'a': 0, 's': 1, 'd': 2, 'f': 3 };
+const laneKeys = ['a', 's', 'd', 'f'];
+const laneColors = ['red', 'green', 'blue', 'yellow'];
+const white = 'white';
+
+const offsetMs = 0;
+let notes = [];
+let currentNoteIndex = 0;
+let score = 0;
+let feedbackText = ["", "", "", ""];
+let feedbackTimers = [0, 0, 0, 0];
+let scoreChangeText = "";
+let scoreChangeTimer = 0;
+let flashScreenRed = false;
+let flashTimer = 0;
+let keyPressed = [false, false, false, false];
+let startTime = null;
+let music;
+let lastNoteTime = 0;
+let gameEnded = false;
+
+// Stats
+let perfectCount = 0;
+let earlyCount = 0;
+let lateCount = 0;
+let missedCount = 0;
+
+let spawnEvents = [];
+fetch('notes.json')
+  .then(response => response.json())
+  .then(data => {
+    spawnEvents = data;
+    if (spawnEvents.length > 0) {
+      lastNoteTime = spawnEvents[spawnEvents.length - 1].time;
+    }
+    setupStartButton();
+  });
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function setupStartButton() {
+  const startButton = document.createElement('button');
+  startButton.textContent = 'Start Game';
+  startButton.style.position = 'absolute';
+  startButton.style.top = '50%';
+  startButton.style.left = '50%';
+  startButton.style.transform = 'translate(-50%, -50%)';
+  startButton.style.fontSize = '24px';
+  startButton.style.padding = '10px 20px';
+  document.body.appendChild(startButton);
+
+  startButton.addEventListener('click', () => {
+    document.body.removeChild(startButton);
+    startGame();
+  });
+}
+
+let lastTimestamp = null;
+
+function startGame() {
+  music = new Audio('assets/Three_And_A_Half-Its_A_Trap_MASTER_07.04.25.wav');
+  music.play();
+  startTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+function fadeOutAndEnd() {
+  let fadeDuration = 2000;
+  let fadeStart = performance.now();
+
+  function fadeStep(now) {
+    let progress = (now - fadeStart) / fadeDuration;
+    if (progress < 1) {
+      music.volume = Math.max(0, 1 - progress);
+      requestAnimationFrame(fadeStep);
+    } else {
+      music.volume = 0;
+      showGameOverScreen();
+    }
+  }
+
+  requestAnimationFrame(fadeStep);
+}
+
+function showGameOverScreen() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const scaleX = canvas.width / BASE_WIDTH;
+  const scaleY = canvas.height / BASE_HEIGHT;
+  const scale = Math.min(scaleX, scaleY);
+
+  ctx.fillStyle = 'white';
+  ctx.font = 48 * scale + 'px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('Game Over', canvas.width / 2, 150 * scale);
+
+  ctx.font = 28 * scale + 'px Arial';
+  ctx.fillText(`Perfect: ${perfectCount}`, canvas.width / 2, 300 * scale);
+  ctx.fillText(`Early: ${earlyCount}`, canvas.width / 2, 350 * scale);
+  ctx.fillText(`Late: ${lateCount}`, canvas.width / 2, 400 * scale);
+  ctx.fillText(`Missed: ${missedCount}`, canvas.width / 2, 450 * scale);
+
+  const playAgainButton = document.createElement('button');
+  playAgainButton.textContent = 'Play Again?';
+  playAgainButton.style.position = 'absolute';
+  playAgainButton.style.top = '520px';
+  playAgainButton.style.left = 'calc(50% - 70px)';
+  playAgainButton.style.fontSize = '24px';
+  playAgainButton.style.padding = '10px 20px';
+  document.body.appendChild(playAgainButton);
+
+  playAgainButton.addEventListener('click', () => {
+    location.reload();
+  });
+}
+
+function gameLoop(timestamp) {
+  if (!lastTimestamp) lastTimestamp = timestamp;
+  let deltaTime = (timestamp - lastTimestamp) / 16.6667;
+  lastTimestamp = timestamp;
+
+  let elapsed = timestamp - startTime + offsetMs;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(canvas.width / BASE_WIDTH, canvas.height / BASE_HEIGHT);
+
+  ctx.fillStyle = flashScreenRed ? 'red' : 'black';
+  ctx.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
+
+  let laneWidth = BASE_WIDTH / 4;
+  let lanes = [0, laneWidth, laneWidth * 2, laneWidth * 3];
+  let hitboxTop = hitboxTopBase;
+
+  while (currentNoteIndex < spawnEvents.length && elapsed >= spawnEvents[currentNoteIndex].time) {
+    let event = spawnEvents[currentNoteIndex];
+    notes.push({
+      lane: event.lane,
+      x: lanes[event.lane] + (laneWidth - noteWidth) / 2,
+      y: -noteHeight,
+      hit: false,
+      judged: false
+    });
+    currentNoteIndex++;
+  }
+
+  notes.forEach(note => {
+    note.y += noteSpeed * deltaTime;
+    ctx.fillStyle = note.hit ? white : laneColors[note.lane];
+    ctx.fillRect(note.x, note.y, noteWidth, noteHeight);
+  });
+
+  notes.forEach(note => {
+    if (!note.hit && !note.judged && note.y > hitboxTop + hitboxHeight + bufferHeight) {
+      missedCount++;
+      note.judged = true;
+    }
+  });
+
+  for (let i = 0; i < 4; i++) {
+    let laneX = lanes[i];
+    ctx.fillStyle = 'rgba(80,80,80,0.5)';
+    ctx.fillRect(laneX, hitboxTop - bufferHeight, laneWidth, hitboxHeight);
+    ctx.fillRect(laneX, hitboxTop + hitboxHeight, laneWidth, hitboxHeight);
+  }
+
+  for (let i = 0; i < 4; i++) {
+    let laneX = lanes[i];
+    ctx.fillStyle = keyPressed[i] ? white : 'rgba(0,0,0,0)';
+    ctx.fillRect(laneX, hitboxTop, laneWidth, hitboxHeight);
+
+    ctx.strokeStyle = laneColors[i];
+    ctx.lineWidth = 2;
+    ctx.strokeRect(laneX, hitboxTop, laneWidth, hitboxHeight);
+
+    ctx.fillStyle = laneColors[i];
+    ctx.font = '36px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ASDF'[i], laneX + laneWidth / 2, hitboxTop + hitboxHeight / 2);
+
+    if (feedbackText[i]) {
+      ctx.fillStyle = 'white';
+      ctx.font = '24px Arial';
+      ctx.fillText(feedbackText[i], laneX + laneWidth / 2, hitboxTop - 20);
+    }
+  }
+
+  let now = performance.now();
+  for (let i = 0; i < 4; i++) {
+    if (feedbackTimers[i] && now - feedbackTimers[i] > 800) {
+      feedbackText[i] = "";
+    }
+  }
+
+  if (flashScreenRed && now - flashTimer > 100) {
+    flashScreenRed = false;
+  }
+
+  document.getElementById('score').textContent = "Score: " + score;
+
+  if (scoreChangeText) {
+    ctx.fillStyle = 'white';
+    ctx.font = '24px Arial';
+    ctx.fillText(scoreChangeText, 50, 80);
+    if (now - scoreChangeTimer > 800) {
+      scoreChangeText = "";
+    }
+  }
+
+  if (!gameEnded && elapsed > lastNoteTime + 5000) {
+    gameEnded = true;
+    fadeOutAndEnd();
+  }
+
+  if (!gameEnded) {
+    requestAnimationFrame(gameLoop);
+  }
+}
+
+// DESKTOP INPUT
+document.addEventListener('keydown', (e) => {
+  let key = e.key.toLowerCase();
+  if (keyBindings.hasOwnProperty(key)) {
+    keyPressed[keyBindings[key]] = true;
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  let key = e.key.toLowerCase();
+  if (keyBindings.hasOwnProperty(key)) {
+    keyPressed[keyBindings[key]] = false;
+  }
+});
+
+// TOUCH INPUT
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  for (let touch of e.touches) {
+    const touchX = touch.clientX;
+    const laneWidth = canvas.width / 4;
+    const lane = Math.floor(touchX / laneWidth);
+    if (lane >= 0 && lane < 4) {
+      keyPressed[lane] = true;
+    }
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 0) {
+    keyPressed = [false, false, false, false];
+  } else {
+    let active = [false, false, false, false];
+    for (let touch of e.touches) {
+      const touchX = touch.clientX;
+      const laneWidth = canvas.width / 4;
+      const lane = Math.floor(touchX / laneWidth);
+      if (lane >= 0 && lane < 4) {
+        active[lane] = true;
+      }
+    }
+    keyPressed = active;
+  }
+}, { passive: false });
