@@ -18,7 +18,7 @@ const missRed = '#FF0000';
 const offsetMs = 100;
 
 const hiltImage = new Image();
-hiltImage.src = './assets/Lightsaber.png';
+hiltImage.src = './assets/lightsaber.png';
 let hiltLoaded = false;
 hiltImage.onload = () => {
   hiltLoaded = true;
