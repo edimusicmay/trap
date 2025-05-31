@@ -108,7 +108,7 @@ function drawStartScreen() {
   ctx.fillText("By Three and a Half", canvas.width / 2, 220 * scale);
   ctx.fillText("Featuring Dave Sear", canvas.width / 2, 260 * scale);
   ctx.fillText("Produced by Mono Elekin", canvas.width / 2, 300 * scale);
-  ctx.fillText("Mastered by Minus Burger", canvas.width / 2, 340 * scale);
+  ctx.fillText("Mastered by Convolution", canvas.width / 2, 340 * scale);
 
   ctx.fillStyle = white;
   setSpaceFont(16 * scale);
