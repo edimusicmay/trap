@@ -131,7 +131,7 @@ drawLeaderboard(ctx, gameOverLeftX, 180 * scale, scale);
 
 const nameInput = document.createElement('input');
 nameInput.type = 'text';
-nameInput.placeholder = 'player';
+nameInput.placeholder = 'Enter Name Here';
 nameInput.maxLength = 20;
 nameInput.style.position = 'absolute';
 nameInput.style.left = `${gameOverLeftX}px`; // align with leaderboard left
