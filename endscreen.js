@@ -311,6 +311,28 @@ ctx.fillText(randomHint, canvas.width / 2, 690 * scale);
 }
 
 function drawLeaderboard(ctx, centerX, startY, scale) {
+// 👇 Add loading text element for leaderboard
+const leaderboardLoadingText = document.createElement('div');
+leaderboardLoadingText.textContent = 'Leaderboard Loading';
+leaderboardLoadingText.style.position = 'absolute';
+leaderboardLoadingText.style.left = '50%';
+leaderboardLoadingText.style.top = `${300 * scale}px`;
+leaderboardLoadingText.style.transform = 'translate(-50%, 0)';
+leaderboardLoadingText.style.fontSize = `${16 * scale}px`;
+leaderboardLoadingText.style.fontFamily = "'Fira Code', monospace";
+leaderboardLoadingText.style.fontWeight = 'normal';
+leaderboardLoadingText.style.color = 'white';
+leaderboardLoadingText.style.zIndex = '10';
+leaderboardLoadingText.id = 'leaderboardLoadingText';
+document.body.appendChild(leaderboardLoadingText);
+
+// 👇 Add dot animation
+let leaderboardDots = 0;
+const leaderboardLoadingInterval = setInterval(() => {
+  leaderboardDots = (leaderboardDots + 1) % 4;
+  leaderboardLoadingText.textContent = 'Leaderboard Loading' + '.'.repeat(leaderboardDots);
+}, 500);
+
   fetch('https://script.google.com/macros/s/AKfycbwSGIUcgYBeRcizkoCW4moD9xiJeEb1aeTh31V1HN9eIoaxmLG9ynwsT3zMYso1emLB/exec')
     .then(response => response.json())
     .then(data => {
@@ -339,6 +361,11 @@ const currentPlayer = {
       const isInTop = playerIndex < 3;
       const displayEntries = isInTop ? topEntries : [...topEntries, currentPlayer];
       const displayIndices = isInTop ? [0, 1, 2] : [0, 1, 2, playerIndex];
+// ✅ Remove loading text now that leaderboard is ready
+clearInterval(leaderboardLoadingInterval);
+if (leaderboardLoadingText && leaderboardLoadingText.parentNode) {
+  leaderboardLoadingText.parentNode.removeChild(leaderboardLoadingText);
+}
 
       // Draw
       ctx.font = `${16 * scale}px 'Fira Code', monospace`; // smaller, no bold
